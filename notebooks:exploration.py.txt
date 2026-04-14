@@ -1,0 +1,41 @@
+"""
+SenSante - E x p l o r a t i o n du dataset p a t i e n t s _ d a k a r . csv
+Lab 1 : Git , Python et Structure Projet
+"""
+import pandas as pd
+# ===== CHARGER LES DONNEES =====
+df = pd . read_csv ( " data / p a t i e n t s _ d a k a r . csv " )
+# ===== PREMIERS A P E R U S =====
+print ( " = " * 50)
+print ( " SENSANTE - E x p l o r a t i o n du dataset " )
+print ( " = " * 50)
+# Di me ns io ns du dataset
+print ( f " \ nNombre de patients : { len ( df ) } " )
+print ( f " Nombre de colonnes : { df . shape [1]} " )
+print ( f " Colonnes : { list ( df . columns ) } " )
+# Apercu des 5 premieres lignes
+print ( f " \n - - - 5 premiers patients --- " )
+print ( df . head () )
+# ===== S T A T I S T I Q U E S DE BASE =====
+print ( f " \n - - - S t a t i s t i q u e s d e s c r i p t i v e s --- " )
+print ( df . describe () . round (2) )
+# ===== R E P A R T I T I O N DES D I A G N O S T I C S =====
+print ( f " \n - - - R e p a r t i t i o n des d i a g n o s t i c s --- " )
+d i a g _ c o u n t s = df [ " d ia gn os ti c " ]. v a l u e _ c o u n t s ()
+for diag , count in d i a g _ c o u n t s . items () :
+pct = count / len ( df ) * 100
+print ( f " { diag :12 s } : { count :3 d } patients ({ pct :.1 f }%) " )
+# ===== R E P A R T I T I O N PAR REGION =====
+print ( f " \n - - - R e p a r t i t i o n par region ( top 5) --- " )
+r e g i o n _ c o u n t s = df [ " region " ]. v a l u e _ c o u n t s () . head (5)
+for region , count in r e g i o n _ c o u n t s . items () :
+print ( f " { region :15 s } : { count :3 d } patients " )
+# ===== T E M P E R A T U R E MOYENNE PAR D IA GN OS TIC =====
+print ( f " \n - - - T e m p e r a t u r e moyenne par d ia gn os ti c --- " )
+t e m p _ b y _ d i a g = df . groupby ( " d iag no st ic " ) [ " t e m p e r a t u r e " ]. mean ()
+for diag , temp in t e m p _ b y _ d i a g . items () :
+print ( f " { diag :12 s } : { temp :.1 f } C " )
+print ( f " \ n { '= ' * 50} " )
+print ( " E x p l o r a t i o n terminee ! " )
+print ( " Prochain lab : entrainer un modele ML " )
+print ( f " { '= ' * 50} " )
