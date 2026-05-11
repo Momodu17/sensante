@@ -1,10 +1,10 @@
 # api/main.py
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import joblib
 import numpy as np
 
-# --- Schémas Pydantic ---
 class PatientInput(BaseModel):
     age: int = Field(..., ge=0, le=120)
     sexe: str = Field(...)
@@ -21,14 +21,20 @@ class DiagnosticOutput(BaseModel):
     confiance: str
     message: str
 
-# --- Application FastAPI ---
 app = FastAPI(
     title="SenSante API",
     description="Assistant pré-diagnostic médical pour le Sénégal",
     version="0.2.0"
 )
 
-# --- Chargement du modèle ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 print("Chargement du modèle...")
 model        = joblib.load("models/model.pkl")
 le_sexe      = joblib.load("models/encoder_sexe.pkl")
@@ -36,54 +42,48 @@ le_region    = joblib.load("models/encoder_region.pkl")
 feature_cols = joblib.load("models/feature_cols.pkl")
 print(f"Modèle chargé : {list(model.classes_)}")
 
-# --- Routes ---
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "message": "SenSante API is running"}
+    return {"status": "ok"}
 
 @app.post("/predict", response_model=DiagnosticOutput)
 def predict(patient: PatientInput):
-    try:
-        sexe_enc = le_sexe.transform([patient.sexe])[0]
-    except ValueError:
-        return DiagnosticOutput(
-            diagnostic="erreur", probabilite=0.0,
-            confiance="aucune",
-            message=f"Sexe invalide : {patient.sexe}. Utiliser M ou F."
-        )
-    try:
-        region_enc = le_region.transform([patient.region])[0]
-    except ValueError:
-        return DiagnosticOutput(
-            diagnostic="erreur", probabilite=0.0,
-            confiance="aucune",
-            message=f"Région inconnue : {patient.region}"
-        )
+    sexe_enc   = le_sexe.transform([patient.sexe])[0]
+    region_enc = le_region.transform([patient.region])[0]
 
-    features = np.array([[
-        patient.age, sexe_enc, patient.temperature,
-        patient.tension_sys, int(patient.toux),
-        int(patient.fatigue), int(patient.maux_tete),
+    features = [
+        patient.age,
+        sexe_enc,
+        patient.temperature,
+        patient.tension_sys,
+        int(patient.toux),
+        int(patient.fatigue),
+        int(patient.maux_tete),
         region_enc
-    ]])
+    ]
 
-    diagnostic = model.predict(features)[0]
-    proba_max  = float(model.predict_proba(features)[0].max())
+    X = np.array([features])
+    prediction  = model.predict(X)[0]
+    probas      = model.predict_proba(X)[0]
+    probabilite = float(max(probas))
 
-    confiance = ("haute"   if proba_max >= 0.7 else
-                 "moyenne" if proba_max >= 0.4 else
-                 "faible")
+    if probabilite >= 0.75:
+        confiance = "haute"
+    elif probabilite >= 0.5:
+        confiance = "moyenne"
+    else:
+        confiance = "faible"
 
     messages = {
-        "palu"  : "Suspicion de paludisme. Consultez un médecin rapidement.",
-        "grippe": "Suspicion de grippe. Repos et hydratation recommandés.",
-        "typh"  : "Suspicion de typhoïde. Consultation médicale nécessaire.",
-        "sain"  : "Pas de pathologie détectée. Continuez à surveiller."
+        "paludisme": "Consulter un médecin rapidement.",
+        "grippe":    "Repos et hydratation recommandés.",
+        "typhoide":  "Consultation médicale conseillée.",
+        "sain":      "Aucun signe critique détecté."
     }
 
     return DiagnosticOutput(
-        diagnostic=diagnostic,
-        probabilite=round(proba_max, 2),
+        diagnostic=prediction,
+        probabilite=probabilite,
         confiance=confiance,
-        message=messages.get(diagnostic, "Consultez un médecin.")
+        message=messages.get(prediction, "Consultez un professionnel de santé.")
     )
